@@ -6,27 +6,47 @@ namespace PhotoUploader.Controllers
 {
 	public class HomeController : Controller
 	{
-		private readonly ILogger<HomeController> _logger;
-
-		public HomeController(ILogger<HomeController> logger)
+		ApplicationContext _context;		
+		IWebHostEnvironment _appEnvironment;
+				
+		public HomeController(ApplicationContext context, IWebHostEnvironment appEnvironment)
 		{
-			_logger = logger;
+			_context = context;
+			_appEnvironment = appEnvironment;
 		}
 
 		public IActionResult Index()
 		{
-			return View();
+            var uploadedPhotos = _context.Files.OrderByDescending(f => f.UploadedTime).ToList();
+            return View(uploadedPhotos);
 		}
-
-		public IActionResult Privacy()
+		
+		[HttpPost]
+		public async Task<IActionResult> AddFile(IFormFile uploadedFile)
 		{
-			return View();
-		}
+			if (uploadedFile != null)
+			{
 
-		[ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
-		public IActionResult Error()
-		{
-			return View(new ErrorViewModel { RequestId = Activity.Current?.Id ?? HttpContext.TraceIdentifier });
+				string path = "/files/" + uploadedFile.FileName;
+
+				using (var fileStream = new FileStream(_appEnvironment.WebRootPath + path, FileMode.Create))
+				{
+					await uploadedFile.CopyToAsync(fileStream);
+				}
+
+				FileModel file = new FileModel 
+				{
+					Name = uploadedFile.FileName, 
+					Path = path,
+					UploadedTime=DateTime.Now
+				};
+
+				_context.Files.Add(file);
+
+				_context.SaveChanges();
+			}
+
+			return RedirectToAction("Index");
 		}
 	}
 }
